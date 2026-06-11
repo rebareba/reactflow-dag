@@ -1,0 +1,301 @@
+/* 容器全屏显示 */
+.dag-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+/* 连线上的删除按钮 */
+.edge-item {
+  position: absolute;
+  pointer-events: all;
+  z-index: 1001;
+  background: #fff;
+  border-radius: 100%;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  margin: 0;
+}
+
+.edge-delete-icon {
+  font-size: 12px;
+  color: #276EFE;
+}
+
+
+/* ===========================
+   自定义节点样式 (CustomNode)
+   =========================== */
+
+/* 1. 节点主容器 */
+.custom-node-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); /* 优化动画曲线 */
+  position: relative;
+  height: 60px;
+  border-radius: 4px;
+  padding: 0;
+  border: 1px solid transparent;
+  overflow: visible;
+  cursor: pointer;
+}
+
+.custom-node-wrapper:hover {
+  /* 更深的阴影 */
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  /* 轻微上浮，增加立体感 */
+  transform: translateY(-2px);
+  z-index: 10; /* 确保悬停时浮在其他元素上面 */
+}
+
+/* 运行中状态：隐藏原边框 */
+.custom-node-wrapper.node-running {
+  border: none !important;
+}
+
+.node-selected {
+  border: 2px solid #276EFE !important;
+}
+
+
+/* 2. 左侧图标区域 */
+.node-icon-area {
+  width: 50px;
+  height: 50px;
+  margin-left: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-size: 18px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  border-radius: 5px;
+}
+
+/* 3. 中间文字区域 */
+.node-text-area {
+  flex: 1;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+  font-weight: 700;
+  font-size: 14px;
+  position: relative;
+  z-index: 1;
+}
+.node-type-title{
+  color: #86909C;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 4. 右侧菜单触发区 */
+.node-menu-area {
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* 更多按钮 (竖点) */
+.more-btn {
+  cursor: pointer;
+  padding: 4px;
+  color: #000;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.more-btn:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+
+/* ===========================
+   自定义下拉菜单样式
+   =========================== */
+.custom-dropdown-menu {
+  padding: 4px 0;
+  border-radius: 2px;
+  box-shadow: 0 3px 6px -4px rgba(0,0,0,.12), 0 6px 16px 0 rgba(0,0,0,.08), 0 9px 28px 8px rgba(0,0,0,.05);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  cursor: pointer;
+  line-height: 22px;
+  transition: all 0.3s;
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 14px;
+}
+
+.custom-dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+/* 禁用状态 */
+.custom-dropdown-item.disabled {
+  color: rgba(0, 0, 0, 0.25);
+  cursor: not-allowed;
+  background-color: transparent;
+}
+
+/* 子菜单缩进 */
+.custom-dropdown-item.child {
+  padding-left: 24px;
+}
+
+/* 分组标题 */
+.custom-dropdown-group-title {
+  padding: 4px 12px;
+  color: #999;
+  font-size: 12px;
+  cursor: default;
+}
+
+.ant-dropdown-menu-item-icon {
+  min-width: 12px;
+  font-size: 12px;
+}
+
+
+/* ===========================
+   运行中状态：虚线边框滚动动画
+   =========================== */
+
+/* SVG虚线边框容器 */
+.node-dashed-border {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  pointer-events: none;
+  z-index: 10;
+  overflow: visible;
+}
+
+/* SVG虚线矩形的滚动动画 */
+.dashed-rect {
+  animation: dash-animation 1s linear infinite;
+}
+
+/* 虚线滚动关键帧动画 */
+@keyframes dash-animation {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -12px;
+  }
+}
+
+
+/* 锚点基础交互动画 */
+.custom-anchor {
+  /* 确保过渡动画平滑 */
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.2s;
+}
+
+
+.custom-anchor.react-flow__handle-valid {
+  transform: scale(1.8) !important; /* 连线时放得更大 */
+  background-color: #00B42A !important; /* 绿色，代表“可连接” */
+  box-shadow: 0 0 0 4px rgba(82, 196, 26, 0.3); /* 绿色光晕 */
+}
+
+.custom-anchor.react-flow__handle-invalid {
+  background-color: #F53F3F !important;
+  cursor: not-allowed;
+}
+
+
+.custom-controls-panel{
+  background: #fff;
+  display: flex;
+}
+
+.task-orchestration-container{
+  display: flex;
+  flex-direction: row;
+}
+
+
+.task-orchestration-control{
+  .ant-tooltip-arrow{
+    .ant-tooltip-arrow-content::before{
+      background: #fff;
+    }
+  }
+  .ant-tooltip-inner{
+    background: #fff;
+    color: #000;
+    font-size: 12px;
+  }
+}
+
+
+.inner-tip {
+  display: inline-block;
+  padding: 0 1px;
+  height: 20px;
+  line-height: 20px;
+}
+
+.inner-tip .inner-tip-text {
+  display: inline-block;
+  transform: scale(0.75);
+}
+
+.inner-tip.inner-tip-status-1 {
+  background-color: rgba(48, 206, 120, 0.2);
+  color: #00B42A;
+}
+
+.inner-tip.inner-tip-status-1:hover {
+  color: #fff;
+  background-color: #00B42A;
+}
+
+.inner-tip.inner-tip-status-2 {
+  background-color: rgba(255, 93, 64, 0.2);
+  color: #F53F3F;
+}
+
+.inner-tip.inner-tip-status-2:hover {
+  color: #fff;
+  background-color: #F53F3F;
+}
+
+.inner-tip.inner-tip-status-3 {
+  background-color: rgba(52, 158, 255, 0.2);
+  color: #6193F9;
+}
+
+.inner-tip.inner-tip-status-3:hover {
+  color: #fff;
+  background-color: #6193F9;
+}
