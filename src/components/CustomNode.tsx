@@ -1,9 +1,10 @@
 import React, {useMemo} from 'react'
 import {MoreOutlined, DeploymentUnitOutlined} from '@ant-design/icons'
-import {Handle, Position} from 'reactflow'
+import {Handle, Position, type NodeProps} from 'reactflow'
 import {Dropdown} from 'antd'
 
 import {COLORS, NODE_STYLES, STATUS_COLORS, NODE_STATUS} from '../constants'
+import type {NodeData, InnerTipItem} from '../types'
 
 const CustomNode = ({
   id,
@@ -11,7 +12,7 @@ const CustomNode = ({
   selected,
   sourcePosition = Position.Bottom,
   targetPosition = Position.Top,
-}) => {
+}: NodeProps<NodeData>) => {
   // 1. 获取状态
   const status = data.status || NODE_STATUS.CONFIGURED
   // 2. 颜色映射
@@ -29,7 +30,17 @@ const CustomNode = ({
     const rawMenu = buildMenu({id, data})
     if (!Array.isArray(rawMenu) || rawMenu.length === 0) return null
 
-    const renderItem = (item, index, isChild = false) => {
+    const renderItem = (
+      item: {
+        label: string
+        icon?: React.ReactNode
+        danger?: boolean
+        disabled?: boolean
+        action?: (e: React.MouseEvent, nodeInfo: {id: string; data: NodeData}) => void
+      },
+      index: number | string,
+      isChild = false,
+    ) => {
       let className = 'custom-dropdown-item'
       if (item.danger) className += ' danger'
       if (item.disabled) className += ' disabled'
@@ -53,20 +64,35 @@ const CustomNode = ({
 
     return (
       <div className="custom-dropdown-menu">
-        {rawMenu.map((item, index) => {
-          if (item.children && item.children.length > 0) {
-            return (
-              // eslint-disable-next-line react/no-array-index-key
-              <React.Fragment key={`group-${index}`}>
-                <div className="custom-dropdown-group-title">{item.label}</div>
-                {item.children.map((child, cIndex) =>
-                  renderItem(child, `child-${index}-${cIndex}`, true),
-                )}
-              </React.Fragment>
-            )
-          }
-          return renderItem(item, `item-${index}`)
-        })}
+        {rawMenu.map(
+          (
+            item: {
+              label: string
+              icon?: React.ReactNode
+              children?: {
+                label: string
+                icon?: React.ReactNode
+                danger?: boolean
+                disabled?: boolean
+                action?: (e: React.MouseEvent, nodeInfo: {id: string; data: NodeData}) => void
+              }[]
+            },
+            index: number,
+          ) => {
+            if (item.children && item.children.length > 0) {
+              return (
+                // eslint-disable-next-line react/no-array-index-key
+                <React.Fragment key={`group-${index}`}>
+                  <div className="custom-dropdown-group-title">{item.label}</div>
+                  {item.children.map((child, cIndex) =>
+                    renderItem(child, `child-${index}-${cIndex}`, true),
+                  )}
+                </React.Fragment>
+              )
+            }
+            return renderItem(item, `item-${index}`)
+          },
+        )}
       </div>
     )
   }, [buildMenu, id, data])
@@ -77,12 +103,12 @@ const CustomNode = ({
     width: NODE_STYLES.HANDLE_SIZE,
     height: NODE_STYLES.HANDLE_SIZE,
     zIndex: 12,
-    position: 'absolute',
+    position: 'absolute' as const,
     transition: 'all 0.2s ease-in-out',
     border: '2px solid #fff',
   }
 
-  const getHandleStyle = (position, index, total) => {
+  const getHandleStyle = (position: Position, index: number, total: number) => {
     const offset = total === 1 ? '50%' : `${((index + 1) * 100) / (total + 1)}%`
     const positionMap = {
       [Position.Top]: {top: '-4px', left: offset},
@@ -100,9 +126,9 @@ const CustomNode = ({
     if (innerTipList && Array.isArray(innerTipList) && innerTipList.length) {
       return (
         <>
-          {innerTipList.map(item => {
-            const {name = '', status = 1, onClick = () => {}} = item
-            const statusCls = `inner-tip-status-${status}`
+          {innerTipList.map((item: InnerTipItem) => {
+            const {name = '', status: tipStatus = 1, onClick = () => {}} = item
+            const statusCls = `inner-tip-status-${tipStatus}`
             return (
               <span
                 key={name}

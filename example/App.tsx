@@ -17,53 +17,66 @@ import {
 } from '@ant-design/icons'
 import React, {useCallback, useRef, useState} from 'react'
 import {Button, Divider, Layout, message, Modal, Space, Switch, Tooltip} from 'antd'
+import type {Connection} from 'reactflow'
 
 import DagFlow, {NODE_STATUS} from '../src/index'
+import type {DagFlowRef} from '../src/types'
 
 const {Sider, Content} = Layout
 
-const businessData = {
+interface BizNode {
+  id: string
+  name: string
+  status: number
+  type: string
+  position?: {x: number; y: number}
+  outputs?: {id: string; color?: string}[]
+}
+
+interface BizLink {
+  from: string
+  to: string
+  sourceHandle?: string
+  targetHandle?: string
+  active?: boolean
+}
+
+const businessData: {nodes: BizNode[]; connections: BizLink[]} = {
   nodes: [
-    {id: '101', name: '订单接入', status: 3, type: 'source'},
+    {id: '101', name: 'ROOT', status: NODE_STATUS.RUNNING, type: 'source'},
     {
       id: '102',
-      name: '风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗风控清洗',
-      status: 'idle',
+      name: '数据同步',
+      status: NODE_STATUS.IDLE,
       type: 'filter',
-      // outputs: [
-      //   { id: 'h-pass', label: '通过', color: '#52c41a' },
-      //   { id: 'h-reject', label: '拦截', color: '#ff4d4f' }
-      // ]
     },
-    {id: '103', name: '数据落库', status: 'idle', type: 'sink'},
-    {id: '104', name: '告警中心', status: 'idle', type: 'sink'},
+    {id: '103', name: '数据落库', status: NODE_STATUS.IDLE, type: 'sink'},
+    {id: '104', name: '告警中心', status: NODE_STATUS.IDLE, type: 'sink'},
   ],
   connections: [
     {from: '101', to: '102'},
     {from: '101', to: '103'},
     {from: '103', to: '104'},
-    // { from: '102', to: '103', sourceHandle: 'h-pass' },
-    // { from: '102', to: '104', sourceHandle: 'h-reject' },
   ],
 }
 
 const App = () => {
-  const [bizNodes, setBizNodes] = useState(businessData.nodes)
-  const [bizLinks, setBizLinks] = useState(businessData.connections)
+  const [bizNodes, setBizNodes] = useState<BizNode[]>(businessData.nodes)
+  const [bizLinks, setBizLinks] = useState<BizLink[]>(businessData.connections)
   const [isRunning, setIsRunning] = useState(false)
   const [canRemove, setCanRemove] = useState(true)
   const [canUnSelect, setCanUnSelect] = useState(true)
-  const [currentSelectId, setCurrentSelectId] = useState(null)
+  const [currentSelectId, setCurrentSelectId] = useState<string | null>(null)
 
-  const dagRef = useRef(null)
+  const dagRef = useRef<DagFlowRef>(null)
   const flowId = 'my-workflow-v2'
 
-  const parseNode = node => {
+  const parseNode = (node: BizNode) => {
     let sourceAnchors = [{id: 'default-source'}]
     const targetAnchors = [{id: 'default-target'}]
 
     if (node.outputs && node.outputs.length > 0) {
-      sourceAnchors = node.outputs.map(out => ({
+      sourceAnchors = node.outputs.map((out: {id: string; color?: string}) => ({
         id: out.id,
         style: {background: out.color || '#777'},
       }))
@@ -81,7 +94,7 @@ const App = () => {
         innerTipList: [
           {
             name: 'RULE',
-            status: 3,
+            status: NODE_STATUS.RUNNING,
             onClick: () => {
               console.log('点击')
             },
@@ -92,7 +105,7 @@ const App = () => {
     }
   }
 
-  const parseLink = link => {
+  const parseLink = (link: BizLink) => {
     return {
       id: `e-${link.from}-${link.to}-${link.sourceHandle || 'default'}`,
       source: link.from,
@@ -106,55 +119,57 @@ const App = () => {
     }
   }
 
-  const buildMenu = useCallback(node => {
-    // 兼容代码：防止 node.data 未定义
-    const data = node.data || {}
-    const isRunning = data.status === NODE_STATUS?.PROCESSING
-    const isExpanded = data.expanded !== false
+  const buildMenu = useCallback(
+    (node: {id: string; data: {label: string; status?: number; expanded?: boolean}}) => {
+      const {data} = node
+      const isRunning = (data.status ?? 0) === NODE_STATUS.RUNNING
+      const isExpanded = data.expanded !== false
 
-    return [
-      {
-        label: '查看详情',
-        icon: <EyeOutlined />,
-        action: (e, n) => message.info(`业务ID: ${n.id}, 名称: ${n.data.label}`),
-      },
-      {
-        label: isExpanded ? '收起下游' : '展开下游',
-        icon: isExpanded ? <CompressOutlined /> : <ExpandOutlined />,
-        disabled: isRunning,
-        action: (e, n) => {
-          if (dagRef.current) {
-            if (isExpanded) {
-              dagRef.current.unexpandNode(n.id)
-              message.success(`已收起 [${n.data.label}] 的下游节点`)
-            } else {
-              dagRef.current.expandNode(n.id)
-              message.success(`已展开 [${n.data.label}] 的下游节点`)
+      return [
+        {
+          label: '查看详情',
+          icon: <EyeOutlined />,
+          action: (_e: unknown, n: {id: string; data: {label: string}}) =>
+            message.info(`业务ID: ${n.id}, 名称: ${n.data.label}`),
+        },
+        {
+          label: isExpanded ? '收起下游' : '展开下游',
+          icon: isExpanded ? <CompressOutlined /> : <ExpandOutlined />,
+          disabled: isRunning,
+          action: (_e: unknown, n: {id: string; data: {label: string}}) => {
+            if (dagRef.current) {
+              if (isExpanded) {
+                dagRef.current.unexpandNode(n.id)
+                message.success(`已收起 [${n.data.label}] 的下游节点`)
+              } else {
+                dagRef.current.expandNode(n.id)
+                message.success(`已展开 [${n.data.label}] 的下游节点`)
+              }
             }
-          }
+          },
         },
-      },
-      {
-        label: '删除节点',
-        icon: <DeleteOutlined />,
-        danger: true,
-        disabled: isRunning,
-        action: (e, n) => {
-          setBizNodes(prev => prev.filter(item => item.id !== n.id))
-          setBizLinks(prev => prev.filter(l => l.from !== n.id && l.to !== n.id))
+        {
+          label: '删除节点',
+          icon: <DeleteOutlined />,
+          danger: true,
+          disabled: isRunning,
+          action: (_e: unknown, n: {id: string}) => {
+            setBizNodes(prev => prev.filter(item => item.id !== n.id))
+            setBizLinks(prev => prev.filter(l => l.from !== n.id && l.to !== n.id))
+          },
         },
-      },
-    ]
-  }, [])
+      ]
+    },
+    [],
+  )
 
   const handleLoad2kData = () => {
     const COUNT = 2000
     message.loading(`正在生成 ${COUNT} 个节点...`, 1)
 
-    const newNodes = []
-    const newLinks = []
+    const newNodes: BizNode[] = []
+    const newLinks: BizLink[] = []
 
-    // 为了模拟稍微真实一点的场景，生成多条并行的业务链路
     for (let i = 0; i < COUNT; i++) {
       const id = `stress-${i}`
       const typeOptions = ['source', 'filter', 'sink', 'custom']
@@ -163,15 +178,11 @@ const App = () => {
       newNodes.push({
         id,
         name: `性能测试节点 ${i}`,
-        status: 'idle',
+        status: NODE_STATUS.IDLE,
         type: randomType,
-        // 这里给个随机初始位置，避免所有点重叠在一起
-        // 注意：DagFlow 如果开启了自动布局，这些位置会被覆盖
-        // 但对于大量节点，如果不给初始位置，dagre 计算可能会非常耗时
         position: {x: (i % 50) * 200, y: Math.floor(i / 50) * 100},
       })
 
-      // 简单的连接逻辑：连接到前一个节点 (形成长链，每10个断开一次形成多条链)
       if (i > 0 && i % 10 !== 0) {
         newLinks.push({
           from: `stress-${i - 1}`,
@@ -180,7 +191,6 @@ const App = () => {
       }
     }
 
-    // 批量更新状态
     setBizNodes(newNodes)
     setBizLinks(newLinks)
 
@@ -190,7 +200,7 @@ const App = () => {
   }
 
   const clearCache = () => {
-    if (dagRef.current && dagRef.current.clearPositionCache) {
+    if (dagRef.current?.clearPositionCache) {
       dagRef.current.clearPositionCache()
       message.success('位置缓存已清除，刷新页面生效')
     }
@@ -202,12 +212,11 @@ const App = () => {
     setIsRunning(true)
     message.loading('工作流开始运行...', 1)
 
-    setBizNodes(prev => prev.map(n => ({...n, status: 'idle'})))
+    setBizNodes(prev => prev.map(n => ({...n, status: NODE_STATUS.IDLE})))
     setBizLinks(prev => prev.map(l => ({...l, active: false})))
 
-    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-    // 简单的模拟运行逻辑
     for (let i = 0; i < bizNodes.length; i++) {
       const currentNodeId = bizNodes[i].id
       setBizLinks(prev =>
@@ -215,19 +224,17 @@ const App = () => {
       )
       setBizNodes(prev =>
         prev.map(node =>
-          node.id === currentNodeId
-            ? {...node, status: NODE_STATUS?.PROCESSING || 'processing'}
-            : node,
+          node.id === currentNodeId ? {...node, status: NODE_STATUS.RUNNING} : node,
         ),
       )
       // eslint-disable-next-line no-await-in-loop
-      await sleep(500)
+      await sleep(1000)
       setBizLinks(prev =>
         prev.map(link => (link.to === currentNodeId ? {...link, active: false} : link)),
       )
       setBizNodes(prev =>
         prev.map(node =>
-          node.id === currentNodeId ? {...node, status: NODE_STATUS?.SUCCESS || 'success'} : node,
+          node.id === currentNodeId ? {...node, status: NODE_STATUS.SUCCESS} : node,
         ),
       )
     }
@@ -236,10 +243,10 @@ const App = () => {
   }
 
   const handleAddNode = () => {
-    const newNode = {
+    const newNode: BizNode = {
       id: `new-${Date.now()}`,
       name: '新业务节点',
-      status: 'idle',
+      status: NODE_STATUS.IDLE,
       type: 'custom',
     }
     setBizNodes(prev => [...prev, newNode])
@@ -247,7 +254,10 @@ const App = () => {
   }
 
   const handleRemoveNode = () => {
-    if (!currentSelectId) return message.warning('请先选中一个节点')
+    if (!currentSelectId) {
+      message.warning('请先选中一个节点')
+      return
+    }
     setBizNodes(prev => prev.filter(n => n.id !== currentSelectId))
     setBizLinks(prev => prev.filter(l => l.from !== currentSelectId && l.to !== currentSelectId))
     setCurrentSelectId(null)
@@ -263,33 +273,34 @@ const App = () => {
     message.info('数据已打印到控制台')
   }
 
-  const onDragStart = (event, nodeType, label) => {
+  const onDragStart = (event: React.DragEvent<HTMLDivElement>, nodeType: string, label: string) => {
     event.dataTransfer.setData('application/reactflow', JSON.stringify({type: nodeType, label}))
     event.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDrop = (position, event) => {
+  const handleDrop = (position: {x: number; y: number}, event: React.DragEvent) => {
     const dataString = event.dataTransfer.getData('application/reactflow')
     if (!dataString) return
     const {label, type} = JSON.parse(dataString)
 
-    const newBizNode = {
+    const newBizNode: BizNode = {
       id: `dnd-${Date.now()}`,
-      name: label,
-      status: 'idle',
-      type,
+      name: label as string,
+      status: NODE_STATUS.IDLE,
+      type: type as string,
       position,
     }
     setBizNodes(prev => [...prev, newBizNode])
     message.success(`已添加业务节点: ${label}`)
   }
 
-  const beforeConnection = connection => {
+  const beforeConnection = (connection: Connection) => {
     if (connection.source === connection.target) return false
     return true
   }
 
-  const onConnection = async ({source, target}) => {
+  const onConnection = async ({source, target}: {source: string | null; target: string | null}) => {
+    if (!source || !target) return false
     message.loading({content: '正在校验连线规则...', key: 'checkLink'})
     await new Promise(resolve => setTimeout(resolve, 1000))
 
@@ -302,8 +313,8 @@ const App = () => {
     return true
   }
 
-  const onConnectionRemove = edge => {
-    return new Promise(resolve => {
+  const onConnectionRemove = (edge: {source: string; target: string}): Promise<boolean> => {
+    return new Promise<boolean>(resolve => {
       Modal.confirm({
         title: '确认删除连线?',
         icon: <ExclamationCircleOutlined />,
@@ -319,7 +330,7 @@ const App = () => {
     })
   }
 
-  const itemStyle = {
+  const itemStyle: React.CSSProperties = {
     padding: '10px',
     border: '1px dashed #999',
     marginBottom: '10px',
@@ -433,7 +444,6 @@ const App = () => {
             allowLinkRemove={canRemove}
             canUnSelectNode={canUnSelect}
             defaultSelectedId="101"
-            activeSelectedId={currentSelectId}
             onNodeSelect={node => {
               if (node) {
                 message.info(`点击: ${node.data.label}`)

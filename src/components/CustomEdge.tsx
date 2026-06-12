@@ -1,21 +1,21 @@
 import React from 'react'
 import {CloseCircleOutlined} from '@ant-design/icons'
-import {BaseEdge, EdgeLabelRenderer, getBezierPath} from 'reactflow'
+import {BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps} from 'reactflow'
 
-const CustomEdge = props => {
-  const {
-    id,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    style = {},
-    markerEnd,
-    data,
-  } = props
+import type {EdgeData} from '../types'
 
+const CustomEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}: EdgeProps<EdgeData>) => {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -25,7 +25,7 @@ const CustomEdge = props => {
     targetPosition,
   })
 
-  const shouldShowDelete = data?.showDelete && data?.allowRemove
+  const shouldShowDelete = data.showDelete && data.allowRemove
 
   return (
     <>
@@ -44,7 +44,7 @@ const CustomEdge = props => {
               className="edge-delete-icon"
               onClick={e => {
                 e.stopPropagation()
-                data?.onDelete(id)
+                data.onDelete?.(id)
               }}
             />
           </div>

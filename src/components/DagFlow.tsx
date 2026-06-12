@@ -5,7 +5,6 @@ import React, {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from 'react'
 import 'reactflow/dist/style.css'
 import './DagFlow.css'
@@ -18,6 +17,11 @@ import ReactFlow, {
   updateEdge,
   useEdgesState,
   useNodesState,
+  type Node,
+  type Edge,
+  type Connection,
+  type ReactFlowInstance,
+  Position,
 } from 'reactflow'
 import {debounce} from 'lodash'
 import {PlusOutlined, SyncOutlined, MinusOutlined, ExpandOutlined} from '@ant-design/icons'
@@ -30,6 +34,7 @@ import {
   LAYOUT_DEFAULTS,
   LAYOUT_DIRECTION,
 } from '../constants'
+import type {DagFlowProps, DagFlowRef, NodeData, EdgeData} from '../types'
 import {getDescendants, getLayoutedElements, isGraphStructureChanged} from './dagUtils'
 
 import CustomEdge from './CustomEdge'
@@ -37,9 +42,9 @@ import CustomNode from './CustomNode'
 
 const nodeTypes = {[ELEMENT_TYPES.NODE.STATUS]: CustomNode}
 const edgeTypes = {[ELEMENT_TYPES.EDGE.EDITABLE]: CustomEdge}
-const EMPTY_ARRAY = []
+const EMPTY_ARRAY: [] = []
 
-const DagFlow = forwardRef(
+const DagFlow = forwardRef<DagFlowRef, DagFlowProps>(
   (
     {
       initialNodes = EMPTY_ARRAY,
@@ -68,9 +73,9 @@ const DagFlow = forwardRef(
     },
     ref,
   ) => {
-    const [nodes, setNodes, onNodesChange] = useNodesState([])
-    const [edges, setEdges, onEdgesChange] = useEdgesState([])
-    const reactFlowInstance = useRef(null)
+    const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([])
+    const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([])
+    const reactFlowInstance = useRef<ReactFlowInstance | null>(null)
 
     const callbacksRef = useRef({
       onConnection,
@@ -90,12 +95,19 @@ const DagFlow = forwardRef(
         onNodeSelect,
         onDoubleClick,
       }
-    })
+    }, [
+      onDoubleClick,
+      onConnection,
+      onConnectionRemove,
+      beforeConnection,
+      onEdgesDelete,
+      onNodeSelect,
+    ])
 
     const getCacheKey = useCallback(() => `dag-pos-${flowId}`, [flowId])
 
     const updateNodePosCache = useCallback(
-      node => {
+      (node: Node<NodeData>) => {
         if (!flowId) return
         try {
           const key = getCacheKey()
@@ -110,17 +122,17 @@ const DagFlow = forwardRef(
       [flowId, getCacheKey],
     )
 
-    const getPositionCache = useCallback(() => {
+    const getPositionCache = useCallback((): Record<string, {x: number; y: number}> | null => {
       if (!flowId) return null
       try {
-        return JSON.parse(localStorage.getItem(getCacheKey()))
+        return JSON.parse(localStorage.getItem(getCacheKey()) as string)
       } catch (e) {
         return null
       }
     }, [flowId, getCacheKey])
 
     const setHighlight = useCallback(
-      (id, type) => {
+      (id: string, type: 'edge' | 'target' | 'source') => {
         setEdges(eds =>
           eds.map(e => {
             const isMatch =
@@ -132,7 +144,7 @@ const DagFlow = forwardRef(
                 ...e,
                 animated: true,
                 style: {stroke: ACTIVE_STYLE.stroke, strokeWidth: ACTIVE_STYLE.strokeWidth},
-                markerEnd: {...e.markerEnd, color: ACTIVE_STYLE.markerColor},
+                markerEnd: {type: MarkerType.ArrowClosed, color: ACTIVE_STYLE.markerColor},
                 data: {...e.data, showDelete: !running && allowLinkRemove && type === 'edge'},
               }
             }
@@ -149,14 +161,14 @@ const DagFlow = forwardRef(
           ...e,
           animated: DEFAULT_STYLE.animated,
           style: {stroke: DEFAULT_STYLE.stroke, strokeWidth: DEFAULT_STYLE.strokeWidth},
-          markerEnd: {...e.markerEnd, color: DEFAULT_STYLE.markerColor},
+          markerEnd: {type: MarkerType.ArrowClosed, color: DEFAULT_STYLE.markerColor},
           data: {...e.data, showDelete: false},
         })),
       )
     }, [setEdges])
 
     const onConnect = useCallback(
-      async params => {
+      async (params: Connection) => {
         const cb = callbacksRef.current
         if (cb.onConnection) {
           try {
@@ -174,9 +186,9 @@ const DagFlow = forwardRef(
           data: {
             showDelete: false,
             allowRemove: allowLinkRemove,
-            onDelete: async id => {
+            onDelete: async (id: string) => {
               setEdges(es => es.filter(edge => edge.id !== id))
-              if (cb.onEdgesDelete) cb.onEdgesDelete([{id}])
+              if (cb.onEdgesDelete) cb.onEdgesDelete([{id} as Edge<EdgeData>])
             },
           },
         }
@@ -190,14 +202,14 @@ const DagFlow = forwardRef(
       edgeReconnectRef.current = false
     }, [])
     const onReconnect = useCallback(
-      (oldEdge, newConnection) => {
+      (oldEdge: Edge, newConnection: Connection) => {
         edgeReconnectRef.current = true
         setEdges(els => updateEdge(oldEdge, newConnection, els))
       },
       [setEdges],
     )
     const onReconnectEnd = useCallback(
-      (_, edge) => {
+      (_: MouseEvent | TouchEvent, edge: Edge) => {
         if (!edgeReconnectRef.current) {
           setEdges(eds => eds.filter(e => e.id !== edge.id))
           if (callbacksRef.current.onEdgesDelete) callbacksRef.current.onEdgesDelete([edge])
@@ -207,7 +219,10 @@ const DagFlow = forwardRef(
       [setEdges],
     )
 
-    const onNodeDragStop = useCallback((e, node) => updateNodePosCache(node), [updateNodePosCache])
+    const onNodeDragStop = useCallback(
+      (_e: React.MouseEvent, node: Node<NodeData>) => updateNodePosCache(node),
+      [updateNodePosCache],
+    )
 
     useEffect(() => {
       const rawNodesData = nodeList.length > 0 ? nodeList : initialNodes
@@ -231,7 +246,7 @@ const DagFlow = forwardRef(
             ...e.data,
             showDelete: false,
             allowRemove: allowLinkRemove,
-            onDelete: async id => {
+            onDelete: async (id: string) => {
               const cb = callbacksRef.current
               if (cb.onConnectionRemove) {
                 try {
@@ -258,7 +273,7 @@ const DagFlow = forwardRef(
       const shouldReLayout =
         nodes.length === 0 || isGraphStructureChanged(currentNodes, nodesWithState)
 
-      let finalNodes = []
+      let finalNodes: Node<NodeData>[] = []
 
       if (shouldReLayout) {
         const layoutResult = getLayoutedElements(
@@ -280,8 +295,10 @@ const DagFlow = forwardRef(
           return {
             ...n,
             position: existing ? existing.position : n.position || {x: 0, y: 0},
-            targetPosition: layoutOptions.direction === LAYOUT_DIRECTION.LR ? 'left' : 'top',
-            sourcePosition: layoutOptions.direction === LAYOUT_DIRECTION.LR ? 'right' : 'bottom',
+            targetPosition:
+              layoutOptions.direction === LAYOUT_DIRECTION.LR ? Position.Left : Position.Top,
+            sourcePosition:
+              layoutOptions.direction === LAYOUT_DIRECTION.LR ? Position.Right : Position.Bottom,
           }
         })
       }
@@ -292,7 +309,7 @@ const DagFlow = forwardRef(
         data: {
           ...n.data,
           buildMenu,
-          onHandleHover: (nid, type) => setHighlight(nid, type),
+          onHandleHover: (nid: string, type: 'source' | 'target') => setHighlight(nid, type),
           onHandleLeave: resetAllEdges,
         },
       }))
@@ -320,59 +337,72 @@ const DagFlow = forwardRef(
       setHighlight,
     ])
 
-    useImperativeHandle(ref, () => ({
-      getNodes: () => nodes,
-      getLinks: () => edges,
-      fitView: () => reactFlowInstance.current?.fitView(),
-      zoomIn: () => reactFlowInstance.current?.zoomIn(),
-      zoomOut: () => reactFlowInstance.current?.zoomOut(),
-      clearPositionCache: () => {
-        if (flowId) localStorage.removeItem(getCacheKey())
-      },
-      expandNode: (id, inputNodes, addEndpoints, inputLinks) => {
-        const {nodeIds, edgeIds} = getDescendants(id, nodes, edges)
-        setEdges(eds =>
-          eds.map(e => {
-            const shouldShow = inputLinks
-              ? inputLinks.some(l => l.id === e.id)
-              : edgeIds.includes(e.id)
-            return shouldShow ? {...e, hidden: false} : e
-          }),
-        )
-        setNodes(nds =>
-          nds.map(n => {
-            if (n.id === id) return {...n, data: {...n.data, expanded: true}}
-            const shouldShow = inputNodes
-              ? inputNodes.some(inNode => inNode.id === n.id)
-              : nodeIds.includes(n.id)
-            return shouldShow ? {...n, hidden: false} : n
-          }),
-        )
-      },
-      unexpandNode: (id, inputNodes, inputLinks) => {
-        const {nodeIds, edgeIds} = getDescendants(id, nodes, edges)
-        setEdges(eds =>
-          eds.map(e => {
-            const shouldHide = inputLinks
-              ? inputLinks.some(l => l.id === e.id)
-              : edgeIds.includes(e.id)
-            return shouldHide ? {...e, hidden: true} : e
-          }),
-        )
-        setNodes(nds =>
-          nds.map(n => {
-            if (n.id === id) return {...n, data: {...n.data, expanded: false}}
-            const shouldHide = inputNodes
-              ? inputNodes.some(inNode => inNode.id === n.id)
-              : nodeIds.includes(n.id)
-            return shouldHide ? {...n, hidden: true} : n
-          }),
-        )
-      },
-    }))
+    useImperativeHandle(
+      ref,
+      () => ({
+        getNodes: () => nodes,
+        getLinks: () => edges,
+        fitView: () => reactFlowInstance.current?.fitView(),
+        zoomIn: () => reactFlowInstance.current?.zoomIn(),
+        zoomOut: () => reactFlowInstance.current?.zoomOut(),
+        clearPositionCache: () => {
+          if (flowId) localStorage.removeItem(getCacheKey())
+        },
+        expandNode: (
+          id: string,
+          inputNodes?: Node<NodeData>[],
+          _addEndpoints?: unknown,
+          inputLinks?: Edge<EdgeData>[],
+        ) => {
+          const {nodeIds, edgeIds} = getDescendants(id, nodes, edges)
+          setEdges(eds =>
+            eds.map(e => {
+              const shouldShow = inputLinks
+                ? inputLinks.some(l => l.id === e.id)
+                : edgeIds.includes(e.id)
+              return shouldShow ? {...e, hidden: false} : e
+            }),
+          )
+          setNodes(nds =>
+            nds.map(n => {
+              if (n.id === id) return {...n, data: {...n.data, expanded: true}}
+              const shouldShow = inputNodes
+                ? inputNodes.some(inNode => inNode.id === n.id)
+                : nodeIds.includes(n.id)
+              return shouldShow ? {...n, hidden: false} : n
+            }),
+          )
+        },
+        unexpandNode: (
+          id: string,
+          inputNodes?: Node<NodeData>[],
+          inputLinks?: Edge<EdgeData>[],
+        ) => {
+          const {nodeIds, edgeIds} = getDescendants(id, nodes, edges)
+          setEdges(eds =>
+            eds.map(e => {
+              const shouldHide = inputLinks
+                ? inputLinks.some(l => l.id === e.id)
+                : edgeIds.includes(e.id)
+              return shouldHide ? {...e, hidden: true} : e
+            }),
+          )
+          setNodes(nds =>
+            nds.map(n => {
+              if (n.id === id) return {...n, data: {...n.data, expanded: false}}
+              const shouldHide = inputNodes
+                ? inputNodes.some(inNode => inNode.id === n.id)
+                : nodeIds.includes(n.id)
+              return shouldHide ? {...n, hidden: true} : n
+            }),
+          )
+        },
+      }),
+      [edges, flowId, getCacheKey, nodes, setEdges, setNodes],
+    )
 
     const onDropHandler = useCallback(
-      e => {
+      (e: React.DragEvent) => {
         e.preventDefault()
         if (!reactFlowInstance.current || !onDrop) return
         const position = reactFlowInstance.current.screenToFlowPosition({
@@ -384,14 +414,14 @@ const DagFlow = forwardRef(
       [onDrop],
     )
 
-    const onDragOver = useCallback(e => {
+    const onDragOver = useCallback((e: React.DragEvent) => {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
     }, [])
 
     const debouncedClick = useMemo(
       () =>
-        debounce((e, node) => {
+        debounce((_e: React.MouseEvent, node: Node<NodeData>) => {
           if (callbacksRef.current.onNodeSelect) callbacksRef.current.onNodeSelect(node)
         }, 300),
       [],
@@ -437,11 +467,10 @@ const DagFlow = forwardRef(
           }}
           onDrop={onDropHandler}
           onDragOver={onDragOver}
-          isValidConnection={conn =>
-            callbacksRef.current.beforeConnection
-              ? callbacksRef.current.beforeConnection(conn)
-              : true
-          }
+          isValidConnection={conn => {
+            const cb = callbacksRef.current
+            return cb.beforeConnection ? cb.beforeConnection(conn) : true
+          }}
           deleteKeyCode={running ? null : allowLinkRemove ? KEY_CODES.DELETE : null}
           nodesDraggable={!running}
           nodesConnectable={!running}

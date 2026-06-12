@@ -1,16 +1,27 @@
 import dagre from 'dagre'
+import {Position, type Node, type Edge} from 'reactflow'
 
 import {LAYOUT_DEFAULTS, LAYOUT_DIRECTION} from '../constants'
+import type {LayoutOptions, NodeData, EdgeData} from '../types'
+
+// Module-level variable for canvas caching instead of function property
+let textWidthCanvas: HTMLCanvasElement | null = null
 
 /**
  * 辅助函数：使用 Canvas 测量文本宽度
- * @param {string} text 文本内容
- * @param {string} font 字体样式 (需与 CSS 保持一致)
+ * @param text 文本内容
+ * @param font 字体样式 (需与 CSS 保持一致)
  */
-const getTextWidth = (text, font = "500 13px 'PingFang SC', sans-serif") => {
+const getTextWidth = (
+  text: string,
+  font: string = "500 13px 'PingFang SC', sans-serif",
+): number => {
   if (!text) return 0
-  const canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement('canvas'))
-  const context = canvas.getContext('2d')
+  if (!textWidthCanvas) {
+    textWidthCanvas = document.createElement('canvas')
+  }
+  const context = textWidthCanvas.getContext('2d')
+  if (!context) return 0
   context.font = font
   const metrics = context.measureText(text)
   return metrics.width
@@ -18,11 +29,15 @@ const getTextWidth = (text, font = "500 13px 'PingFang SC', sans-serif") => {
 
 /**
  * 辅助函数：计算节点的动态尺寸
- * @param {Object} node 节点对象
- * @param {number} minWidth 最小宽度
- * @param {number} defaultHeight 默认高度
+ * @param node 节点对象
+ * @param minWidth 最小宽度
+ * @param defaultHeight 默认高度
  */
-const calculateNodeSize = (node, minWidth, defaultHeight) => {
+const calculateNodeSize = (
+  node: Node<NodeData>,
+  minWidth: number,
+  defaultHeight: number,
+): {width: number; height: number} => {
   const label = node.data?.label || ''
   // 测量文字宽度
   const textWidth = getTextWidth(label)
@@ -42,11 +57,15 @@ const calculateNodeSize = (node, minWidth, defaultHeight) => {
 /**
  * 递归查找指定节点的所有后代节点ID和连线ID
  */
-export const getDescendants = (nodeId, nodes, edges) => {
-  const descendantsNodes = new Set()
-  const descendantsEdges = new Set()
+export const getDescendants = (
+  nodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+): {nodeIds: string[]; edgeIds: string[]} => {
+  const descendantsNodes = new Set<string>()
+  const descendantsEdges = new Set<string>()
 
-  const traverse = currentId => {
+  const traverse = (currentId: string) => {
     const outgoingEdges = edges.filter(e => e.source === currentId)
     outgoingEdges.forEach(edge => {
       descendantsEdges.add(edge.id)
@@ -68,10 +87,15 @@ export const getDescendants = (nodeId, nodes, edges) => {
 /**
  * 核心布局算法 (纯函数)
  */
-export const getLayoutedElements = (nodes, edges, options = {}, getPositionCache = null) => {
+export const getLayoutedElements = (
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+  options: LayoutOptions = {},
+  getPositionCache?: () => Record<string, {x: number; y: number}> | null,
+): {nodes: Node<NodeData>[]; edges: Edge<EdgeData>[]} => {
   const {
     direction = LAYOUT_DEFAULTS.DIRECTION,
-    nodeWidth = LAYOUT_DEFAULTS.NODE_WIDTH, // 这里作为最小宽度使用
+    nodeWidth = LAYOUT_DEFAULTS.NODE_WIDTH,
     nodeHeight = LAYOUT_DEFAULTS.NODE_HEIGHT,
     ranksep = LAYOUT_DEFAULTS.RANK_SEP,
     nodesep = LAYOUT_DEFAULTS.NODE_SEP,
@@ -92,7 +116,6 @@ export const getLayoutedElements = (nodes, edges, options = {}, getPositionCache
 
   // 1. 设置节点 (使用动态宽度)
   visibleNodes.forEach(node => {
-    // 修改：不再使用固定 nodeWidth，而是动态计算
     const {width, height} = calculateNodeSize(node, nodeWidth, nodeHeight)
     g.setNode(node.id, {width, height})
   })
@@ -119,7 +142,6 @@ export const getLayoutedElements = (nodes, edges, options = {}, getPositionCache
       position = positionCache[node.id]
     } else {
       // 注意：Dagre 返回的是中心点，React Flow 需要左上角
-      // 这里必须使用 dagre 计算出的该节点的特定宽度 (nodeWithPosition.width)
       position = {
         x: (nodeWithPosition?.x || 0) - (nodeWithPosition?.width || nodeWidth) / 2,
         y: (nodeWithPosition?.y || 0) - (nodeWithPosition?.height || nodeHeight) / 2,
@@ -128,8 +150,8 @@ export const getLayoutedElements = (nodes, edges, options = {}, getPositionCache
 
     return {
       ...node,
-      targetPosition: isHorizontal ? 'left' : 'top',
-      sourcePosition: isHorizontal ? 'right' : 'bottom',
+      targetPosition: isHorizontal ? Position.Left : Position.Top,
+      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
       position,
     }
   })
@@ -137,7 +159,7 @@ export const getLayoutedElements = (nodes, edges, options = {}, getPositionCache
   return {nodes: layoutedNodes, edges}
 }
 
-export const isGraphStructureChanged = (prevNodes, nextNodes) => {
+export const isGraphStructureChanged = (prevNodes: Node[], nextNodes: Node[]): boolean => {
   if (prevNodes.length !== nextNodes.length) return true
   // 如果文字长度变化可能导致布局改变，这里也可以加上 label 的比较
   // 但为了性能，通常只比较显隐状态
