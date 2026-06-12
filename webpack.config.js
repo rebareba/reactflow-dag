@@ -2,6 +2,7 @@ const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const TerserPlugin = require('terser-webpack-plugin')
 const CopyWebpackPlugin = require('copy-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 
 const isDev = process.env.NODE_ENV !== 'production'
 module.exports = {
@@ -11,6 +12,7 @@ module.exports = {
   },
   output: {
     path: path.join(__dirname, 'dist'),
+    filename: 'index.js',
     clean: true,
     chunkFilename: 'chunk.[id].[name].js',
     publicPath: 'auto',

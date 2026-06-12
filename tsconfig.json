@@ -7,10 +7,11 @@
     "skipLibCheck": true,
     // 类型输出到dist目录，和webpack产物统一
     "declarationDir": "./dist",
+    "rootDir": "./src",
     // 移除MF的paths映射，打包库类型不需要
     "paths": {}
   },
   // 只包含业务源码，排除example、配置、js文件
-  "include": ["src/**/*.ts", "src/**/*.tsx","example/**/*"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist/**", "webpack.config.js"]
 }

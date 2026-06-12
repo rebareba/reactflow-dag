@@ -21,7 +21,7 @@ module.exports = {
     ecmaFeatures: {
       jsx: true,
     },
-    project: './tsconfig.json',
+    project: './tsconfig.lint.json',
   },
   // 一个配置文件可以被基础配置中的已启用的规则继承。
   extends: [
